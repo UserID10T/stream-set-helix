@@ -10,43 +10,29 @@ import (
 )
 
 type TopGamesResponse struct {
-	Total int64        `json:"_total"`
-	Top   []TwitchGame `json:"top"`
+	Data []TopGame `json:"data"`
+	Pagination struct {
+		Cursor string `json:"cursor"`
+	} `json:"pagination"`
 }
 
-type TwitchGame struct {
-	Channels int64 `json:"channels"`
-	Viewers  int64 `json:"viewers"`
-	Game     Game  `json:"game"`
-}
-
-type Game struct {
-	ID          int64      `json:"_id"`
-	Box         GameImages `json:"box"`
-	GiantbombID int64      `json:"giantbomb_id"`
-	Logo        GameImages `json:"logo"`
-	Name        string     `json:"name"`
-	Popularity  int64      `json:"popularity"`
-}
-
-type GameImages struct {
-	Large    string `json:"large"`
-	Medium   string `json:"medium"`
-	Small    string `json:"small"`
-	Template string `json:"template"`
+type TopGame struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	BoxArtURL   string `json:"box_art_url"`
 }
 
 func GetTopGames(limit int, offset int) TopGamesResponse {
-	url := TwitchAPIURL + "/games/top?limit=" + strconv.Itoa(limit)
+	url := TwitchAPIURL + "/games/top?first=" + strconv.Itoa(limit)
 	if offset > 0 {
-		url += "&offset=" + strconv.Itoa(offset)
+		url += "&after=" + strconv.Itoa(offset)
 	}
-	body, err := Request("GET", url, nil, false, false)
+	body, err := Request("GET", url, nil)
 	if err != nil {
 		fmt.Println("GetTopGames error:", err)
 		return TopGamesResponse{}
 	}
-	topGamesResponse := TopGamesResponse{}
+	var topGamesResponse TopGamesResponse
 	if err := json.Unmarshal([]byte(body), &topGamesResponse); err != nil {
 		fmt.Println("GetTopGames decode error:", err)
 		return TopGamesResponse{}
@@ -65,12 +51,10 @@ func GetTopGamesNames() {
 
 	tgr := GetTopGames(100, 0)
 	time.Sleep(500 * time.Millisecond)
-	tgr1 := GetTopGames(100, 100)
-	tgr.Top = append(tgr.Top, tgr1.Top...)
-	for _, g := range tgr.Top {
-		tempGame := DBGame{
-			TwitchName: g.Game.Name,
-		}
+	tgr1 := GetTopGames(100, 0)
+	tgr.Data = append(tgr.Data, tgr1.Data...)
+	for _, g := range tgr.Data {
+		tempGame := DBGame{TwitchName: g.Name}
 		GameDB = append(GameDB, tempGame)
 	}
 

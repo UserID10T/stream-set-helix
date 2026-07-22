@@ -2,7 +2,7 @@ package twitch
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -37,17 +37,19 @@ type GameImages struct {
 }
 
 func GetTopGames(limit int, offset int) TopGamesResponse {
-	var url = TwitchAPIURL + "/games/top?limit=" + strconv.Itoa(limit)
+	url := TwitchAPIURL + "/games/top?limit=" + strconv.Itoa(limit)
 	if offset > 0 {
 		url += "&offset=" + strconv.Itoa(offset)
 	}
 	body, err := Request("GET", url, nil, false, false)
 	if err != nil {
-		log.Panicf("%s\n", err)
+		fmt.Println("GetTopGames error:", err)
+		return TopGamesResponse{}
 	}
 	topGamesResponse := TopGamesResponse{}
 	if err := json.Unmarshal([]byte(body), &topGamesResponse); err != nil {
-		log.Panicf("%s\n", err)
+		fmt.Println("GetTopGames decode error:", err)
+		return TopGamesResponse{}
 	}
 	return topGamesResponse
 }
@@ -56,21 +58,21 @@ func GetTopGamesNames() {
 	if save.GameListExist() {
 		err := save.LoadGameList(&GameDB)
 		if err != nil {
-			log.Fatalln(err)
+			fmt.Println(err)
 		}
-		// log.Println(GameDB)
-	} else {
-		tgr := GetTopGames(100, 0)
-		time.Sleep(500 * time.Millisecond)
-		tgr1 := GetTopGames(100, 100)
-		tgr.Top = append(tgr.Top, tgr1.Top...)
-		for _, g := range tgr.Top {
-			tempGame := DBGame{
-				TwitchName: g.Game.Name,
-			}
-			GameDB = append(GameDB, tempGame)
-		}
-
-		go save.SaveGameList(GameDB)
+		return
 	}
+
+	tgr := GetTopGames(100, 0)
+	time.Sleep(500 * time.Millisecond)
+	tgr1 := GetTopGames(100, 100)
+	tgr.Top = append(tgr.Top, tgr1.Top...)
+	for _, g := range tgr.Top {
+		tempGame := DBGame{
+			TwitchName: g.Game.Name,
+		}
+		GameDB = append(GameDB, tempGame)
+	}
+
+	go save.SaveGameList(GameDB)
 }

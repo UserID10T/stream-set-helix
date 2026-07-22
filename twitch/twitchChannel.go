@@ -3,6 +3,7 @@ package twitch
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/lxn/walk"
@@ -49,29 +50,38 @@ var (
 
 func SetTwitchChannel() {
 	UserChannel = GetChannelInfo()
-	guicontroller.MW.TwitchUsername.SetText(UserChannel.DisplayName)
-	guicontroller.MW.TwitchGame.SetText(UserChannel.Game)
-	if !imageSet {
+	if guicontroller.MW.TwitchUsername != nil {
+		guicontroller.MW.TwitchUsername.SetText(UserChannel.DisplayName)
+	}
+	if guicontroller.MW.TwitchGame != nil {
+		guicontroller.MW.TwitchGame.SetText(UserChannel.Game)
+	}
+	if !imageSet && UserChannel.Logo != "" {
 		save.Image(UserChannel.Logo, func() {
 			imageSet = true
 			img, err := walk.NewImageFromFile(save.ImagePathFromURL(UserChannel.Logo))
 			if err != nil {
 				imageSet = false
 				log.Println(err)
+				return
 			}
-			guicontroller.MW.TwitchImage.SetImage(img)
+			if guicontroller.MW.TwitchImage != nil {
+				guicontroller.MW.TwitchImage.SetImage(img)
+			}
 		})
 	}
 }
 
 func GetChannelInfo() Channel {
-	body, err := Request("GET", TwitchAPIURL+"/channel", nil, true, false)
+	body, err := Request("GET", TwitchAPIURL+"/channels", nil, false, false)
 	if err != nil {
-		log.Panicf("%s\n", err)
+		fmt.Println("GetChannelInfo error:", err)
+		return Channel{}
 	}
 	ch := Channel{}
 	if err := json.Unmarshal([]byte(body), &ch); err != nil {
-		log.Panicf("%s\n", err)
+		fmt.Println("GetChannelInfo decode error:", err)
+		return Channel{}
 	}
 	return ch
 }
@@ -86,11 +96,10 @@ func UpdateChannelGame(game string) {
 
 		res2B, _ := json.Marshal(resC)
 
-		if _, err := Request("PUT", TwitchAPIURL+"/channels/"+UserChannel.ID, bytes.NewBuffer(res2B), true, true); err != nil {
-			log.Panicf("%s\n", err)
+		if _, err := Request("PATCH", TwitchAPIURL+"/channels", bytes.NewBuffer(res2B), true, true); err != nil {
+			log.Println(err)
 		} else {
 			SetTwitchChannel()
 		}
-
 	}
 }

@@ -12,36 +12,19 @@ import (
 	"github.com/asimshrestha2/stream-set/save"
 )
 
-type Channel struct {
-	Mature                       bool   `json:"mature"`
-	Status                       string `json:"status"`
-	BroadcasterLanguage          string `json:"broadcaster_language"`
-	DisplayName                  string `json:"display_name"`
-	Game                         string `json:"game"`
-	Language                     string `json:"language"`
-	ID                           string `json:"_id"`
-	Name                         string `json:"name"`
-	CreatedAt                    string `json:"created_at"`
-	UpdatedAt                    string `json:"updated_at"`
-	Partner                      bool   `json:"partner"`
-	Logo                         string `json:"logo"`
-	VideoBanner                  string `json:"video_banner"`
-	ProfileBanner                string `json:"profile_banner"`
-	ProfileBannerBackgroundColor string `json:"profile_banner_background_color"`
-	URL                          string `json:"url"`
-	Views                        int64  `json:"views"`
-	Followers                    int64  `json:"followers"`
-	BroadcasterType              string `json:"broadcaster_type"`
-	StreamKey                    string `json:"stream_key"`
-	Email                        string `json:"email"`
+type ChannelResponse struct {
+	Data []HelixChannel `json:"data"`
 }
 
-type ChannelG struct {
-	ChannelA GameC `json:"channel"`
-}
-
-type GameC struct {
-	GameA string `json:"game"`
+type HelixChannel struct {
+	BroadcasterID   string `json:"broadcaster_id"`
+	BroadcasterName string `json:"broadcaster_name"`
+	BroadcasterLogin string `json:"broadcaster_login"`
+	GameID          string `json:"game_id"`
+	GameName        string `json:"game_name"`
+	Title           string `json:"title"`
+	Language        string `json:"broadcaster_language"`
+	Delay           int    `json:"delay"`
 }
 
 var (
@@ -49,17 +32,36 @@ var (
 )
 
 func SetTwitchChannel() {
-	UserChannel = GetChannelInfo()
-	if guicontroller.MW.TwitchUsername != nil {
-		guicontroller.MW.TwitchUsername.SetText(UserChannel.DisplayName)
+	if guicontroller.MW.TwitchUsername == nil || guicontroller.MW.TwitchGame == nil {
+		return
 	}
-	if guicontroller.MW.TwitchGame != nil {
-		guicontroller.MW.TwitchGame.SetText(UserChannel.Game)
+
+	user, err := CurrentUser()
+	if err != nil || user == nil {
+		log.Println("SetTwitchChannel: current user unavailable:", err)
+		return
 	}
-	if !imageSet && UserChannel.Logo != "" {
-		save.Image(UserChannel.Logo, func() {
+
+	guicontroller.MW.TwitchUsername.SetText(user.DisplayName)
+
+	channel, err := CurrentChannel(user.ID)
+	if err != nil || channel == nil {
+		log.Println("SetTwitchChannel: current channel unavailable:", err)
+		return
+	}
+
+	guicontroller.MW.TwitchGame.SetText(channel.GameName)
+	UserChannel = Channel{
+		ID:          channel.BroadcasterID,
+		DisplayName: user.DisplayName,
+		Game:        channel.GameName,
+		Name:        user.Login,
+	}
+
+	if !imageSet && user.ProfileImageURL != "" {
+		save.Image(user.ProfileImageURL, func() {
 			imageSet = true
-			img, err := walk.NewImageFromFile(save.ImagePathFromURL(UserChannel.Logo))
+			img, err := walk.NewImageFromFile(save.ImagePathFromURL(user.ProfileImageURL))
 			if err != nil {
 				imageSet = false
 				log.Println(err)
@@ -73,33 +75,45 @@ func SetTwitchChannel() {
 }
 
 func GetChannelInfo() Channel {
-	body, err := Request("GET", TwitchAPIURL+"/channels", nil, false, false)
-	if err != nil {
-		fmt.Println("GetChannelInfo error:", err)
+	user, err := CurrentUser()
+	if err != nil || user == nil {
+		fmt.Println("GetChannelInfo user error:", err)
 		return Channel{}
 	}
-	ch := Channel{}
-	if err := json.Unmarshal([]byte(body), &ch); err != nil {
-		fmt.Println("GetChannelInfo decode error:", err)
+
+	channel, err := CurrentChannel(user.ID)
+	if err != nil || channel == nil {
+		fmt.Println("GetChannelInfo channel error:", err)
 		return Channel{}
 	}
-	return ch
+
+	return Channel{
+		DisplayName: user.DisplayName,
+		Game:        channel.GameName,
+		ID:          channel.BroadcasterID,
+		Name:        user.Login,
+		Logo:        user.ProfileImageURL,
+	}
 }
 
 func UpdateChannelGame(game string) {
-	if game != "" {
-		resC := &ChannelG{
-			ChannelA: GameC{
-				GameA: game,
-			},
-		}
-
-		res2B, _ := json.Marshal(resC)
-
-		if _, err := Request("PATCH", TwitchAPIURL+"/channels", bytes.NewBuffer(res2B), true, true); err != nil {
-			log.Println(err)
-		} else {
-			SetTwitchChannel()
-		}
+	if game == "" {
+		return
 	}
+
+	user, err := CurrentUser()
+	if err != nil || user == nil {
+		log.Println("UpdateChannelGame: current user unavailable:", err)
+		return
+	}
+
+	payload := map[string]string{"game_id": game}
+	body, _ := json.Marshal(payload)
+
+	if _, err := Request("PATCH", fmt.Sprintf("%s/channels?broadcaster_id=%s", TwitchAPIURL, user.ID), bytes.NewBuffer(body)); err != nil {
+		log.Println(err)
+		return
+	}
+
+	SetTwitchChannel()
 }

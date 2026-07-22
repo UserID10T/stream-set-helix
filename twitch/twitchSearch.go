@@ -7,39 +7,31 @@ import (
 	"net/url"
 )
 
-// SearchRespose - Search Response
-// Kept for compatibility with the legacy game list behavior.
-type SearchRespose struct {
-	Games []SGame `json:"games"`
+type SearchCategoriesResponse struct {
+	Data []SearchCategory `json:"data"`
 }
 
-// SGame - Search Game
-type SGame struct {
-	Name          string     `json:"name"`
-	Popularity    int64      `json:"popularity"`
-	ID            int64      `json:"_id"`
-	GiantbombID   int64      `json:"giantbomb_id"`
-	Box           GameImages `json:"box"`
-	Logo          GameImages `json:"logo"`
-	LocalizedName string     `json:"localized_name"`
-	Locale        string     `json:"locale"`
+type SearchCategory struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	BoxArtURL   string `json:"box_art_url"`
 }
 
-// SearchGames sends a request to twitch and checks if there is a game based on query.
+// SearchGames searches Twitch categories and maps the first result to a DBGame.
 func SearchGames(query string) (DBGame, error) {
-	quertP, _ := url.Parse(query)
-	uri := TwitchAPIURL + "/search/games?query=" + quertP.String()
-	body, err := Request("GET", uri, nil, false, false)
+	q, _ := url.Parse(query)
+	uri := TwitchAPIURL + "/search/categories?query=" + q.String()
+	body, err := Request("GET", uri, nil)
 	if err != nil {
 		return DBGame{}, err
 	}
-	sr := SearchRespose{}
+	var sr SearchCategoriesResponse
 	if err := json.Unmarshal([]byte(body), &sr); err != nil {
 		return DBGame{}, err
 	}
-	if len(sr.Games) > 0 {
-		return DBGame{TwitchName: sr.Games[0].Name}, nil
+	if len(sr.Data) > 0 {
+		return DBGame{TwitchName: sr.Data[0].Name}, nil
 	}
-	fmt.Println("SearchGames: no games found for", query)
+	fmt.Println("SearchGames: no categories found for", query)
 	return DBGame{}, errors.New("Not Found")
 }

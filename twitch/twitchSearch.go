@@ -3,10 +3,12 @@ package twitch
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 )
 
 // SearchRespose - Search Response
+// Kept for compatibility with the legacy game list behavior.
 type SearchRespose struct {
 	Games []SGame `json:"games"`
 }
@@ -23,7 +25,7 @@ type SGame struct {
 	Locale        string     `json:"locale"`
 }
 
-// SearchGames sends a request to twitch and checks if there is a game based on query
+// SearchGames sends a request to twitch and checks if there is a game based on query.
 func SearchGames(query string) (DBGame, error) {
 	quertP, _ := url.Parse(query)
 	uri := TwitchAPIURL + "/search/games?query=" + quertP.String()
@@ -38,5 +40,6 @@ func SearchGames(query string) (DBGame, error) {
 	if len(sr.Games) > 0 {
 		return DBGame{TwitchName: sr.Games[0].Name}, nil
 	}
+	fmt.Println("SearchGames: no games found for", query)
 	return DBGame{}, errors.New("Not Found")
 }
